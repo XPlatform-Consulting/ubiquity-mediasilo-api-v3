@@ -9,9 +9,9 @@ class Ubiquity::MediaSilo::API::V3::CLI < Ubiquity::CLI
   end
 
   def self.define_parameters
-    argument_parser.on('--hostname HOSTNAME', 'The hostname to authenticate with.') { |v| arguments[:hostname] = v }
-    argument_parser.on('--username USERNAME', 'The username to authenticate with.') { |v| arguments[:username] = v }
-    argument_parser.on('--password PASSWORD', 'The password to authenticate with.') { |v| arguments[:password] = v }
+    argument_parser.on('--hostname HOSTNAME', 'The account hostname to authenticate with.') { |v| arguments[:hostname] = v }
+    argument_parser.on('--username USERNAME', 'The account username to authenticate with.') { |v| arguments[:username] = v }
+    argument_parser.on('--password PASSWORD', 'The account password to authenticate with.') { |v| arguments[:password] = v }
 
     argument_parser.on('--method-name METHODNAME', 'The name of the method to call.') { |v| arguments[:method_name] = v }
     argument_parser.on('--method-arguments JSON', 'The arguments to pass when calling the method.') { |v| arguments[:method_arguments] = v }
@@ -35,9 +35,10 @@ class Ubiquity::MediaSilo::API::V3::CLI < Ubiquity::CLI
   # @option args [Integer]    :log_level (Logger::DEBUG) The logging level to be set to the logger
   def initialize_logger(args = { })
     @logger = args[:logger] ||= Logger.new(args[:log_to] ||= STDERR)
-    logger.level = (log_level = args[:log_level]) ? log_level : Logger::WARN
-    args[:logger] = logger
-    args[:log_level] ||= logger.level
+    @logger.level = (log_level = args[:log_level]) ? log_level : Logger::WARN
+    args[:logger] = @logger
+    args[:log_level] ||= @logger.level
+    @logger
   end
 
   def initialize_api(args = { })

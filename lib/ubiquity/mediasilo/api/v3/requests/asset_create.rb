@@ -1,4 +1,4 @@
-module Ubiquity::MediaSilo::API::V3::Client::Requests
+module Ubiquity::MediaSilo::API::V3::Requests
 
   class AssetCreate < BaseRequest
 
@@ -6,11 +6,11 @@ module Ubiquity::MediaSilo::API::V3::Client::Requests
     HTTP_PATH = '/assets'
 
     PARAMETERS = [
-      :projectId,
+      { :name => :projectId, :required => true },
       :folderId,
       :title,
       :description,
-      :sourceUrl,
+      { :name => :sourceUrl, :required => true },
       :isPrivate
     ]
 

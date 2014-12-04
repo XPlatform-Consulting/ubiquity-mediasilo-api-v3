@@ -5,7 +5,7 @@ require 'ubiquity/mediasilo/api/v3/version'
 
 Gem::Specification.new do |spec|
   spec.name          = "ubiquity-mediasilo-api-v3"
-  spec.version       = Ubiquity::Mediasilo::Api::V3::VERSION
+  spec.version       = Ubiquity::MediaSilo::API::V3::VERSION
   spec.authors       = ["John Whitson"]
   spec.email         = ["john.whitson@gmail.com"]
   spec.summary       = %q{TODO: Write a short summary. Required.}

@@ -18,7 +18,7 @@ module Ubiquity
             def capitalize; self end
           end
 
-          attr_accessor :logger, :http, :host, :port, :base_uri
+          attr_accessor :logger, :http, :http_host_address, :http_host_port, :base_uri
           attr_accessor :hostname, :username, :password
 
           attr_accessor :default_request_headers,
@@ -29,7 +29,7 @@ module Ubiquity
 
           attr_accessor :request, :response
 
-          DEFAULT_HTTP_HOST_NAME = 'api.mediasilo.com'
+          DEFAULT_HTTP_HOST_ADDRESS = 'api.mediasilo.com'
           DEFAULT_HTTP_HOST_PORT = 443
 
           def initialize(args = { })
@@ -41,7 +41,7 @@ module Ubiquity
             @username = args[:username] || ''
             @password = args[:password] || ''
 
-            @base_uri = args[:base_uri] || "https://#{host}/v3/"
+            @base_uri = args[:base_uri] || "http#{http.use_ssl? ? 's' : ''}://#{http.address}:#{http.port}/v3/"
 
             @user_agent_default = "#{@hostname}:#{@username} Ruby SDK Version #{Ubiquity::MediaSilo::API::V3::VERSION}"
 
@@ -76,9 +76,9 @@ module Ubiquity
           end
 
           def initialize_http(args = { })
-            @host = args[:host] ||= DEFAULT_HTTP_HOST_NAME
-            @port = args[:port] ||= DEFAULT_HTTP_HOST_PORT
-            @http = Net::HTTP.new(host, port)
+            @http_host_address = args[:http_host_address] ||= DEFAULT_HTTP_HOST_ADDRESS
+            @http_host_port = args[:http_host_port] ||= DEFAULT_HTTP_HOST_PORT
+            @http = Net::HTTP.new(http_host_address, http_host_port)
             http.use_ssl = true
 
             # TODO Add SSL Patch

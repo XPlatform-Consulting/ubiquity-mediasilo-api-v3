@@ -1,0 +1,27 @@
+#!/usr/bin/env ruby
+lib_path = File.expand_path('../../lib', __FILE__)
+$:.unshift(lib_path) unless $:.include?(lib_path) or !File.exists?(lib_path)
+
+require 'rubygems'
+require 'ubiquity/mediasilo/api/v3/cli'
+
+console = ARGV.delete('--console')
+begin
+  if console
+    def load_cli; load 'ubiquity/mediasilo/api/v3/cli.rb'; @cli = nil end; load_cli
+    require 'irb'; IRB.start
+  else
+    require 'ubiquity/mediasilo/api/v3/cli'
+    ARGV << '--help' if ARGV.empty?
+    cli.run
+  end
+rescue LoadError
+  lib_path = File.expand_path('../../lib', __FILE__)
+  unless $:.include?(lib_path)
+    $:.unshift(lib_path)
+    #warn("Retrying to load Ubiquity-YouTube after adding #{lib_path} to $LOAD_PATH. The GEM may not be installed correctly.")
+    retry
+  end
+  abort("Failed to load the required file. Exception: #{$!}")
+end
+

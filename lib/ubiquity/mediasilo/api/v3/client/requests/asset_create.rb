@@ -1,4 +1,4 @@
-module Ubiquity::MediaSilo::API::V3::Requests
+module Ubiquity::MediaSilo::API::V3::Client::Requests
 
   class AssetCreate < BaseRequest
 

@@ -1,5 +1,5 @@
 require 'ubiquity/mediasilo/api/v3/http_client'
-require 'ubiquity/mediasilo/api/v3/requests'
+require 'ubiquity/mediasilo/api/v3/client/requests'
 
 class Ubiquity::MediaSilo::API::V3::Client
 
@@ -60,9 +60,14 @@ class Ubiquity::MediaSilo::API::V3::Client
   end
   alias :asset_delete :asset_delete_by_id
 
+  def asset_get_by_id(args = { }, options = { })
+    process_request(Requests::AssetGetById, args, options)
+  end
+
   def assets_get(args = { })
     @response = http_client.get('/assets')
   end
+
 
   def assets_get_by_project_id(project_id)
     project_id = project_id[:id] || project_id[:project_id] if project_id.is_a?(Hash)

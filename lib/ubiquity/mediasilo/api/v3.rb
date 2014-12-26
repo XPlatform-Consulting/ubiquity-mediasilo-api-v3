@@ -2,7 +2,7 @@ require 'ubiquity/mediasilo/api/v3/version'
 
 module Ubiquity
   module Mediasilo
-    module Api
+    class API
       module V3
 
       end

@@ -2,7 +2,7 @@ require 'cgi'
 
 module Ubiquity
   module MediaSilo
-    module API
+    class API
       module V3
         class Client
           module Requests
@@ -10,10 +10,21 @@ module Ubiquity
 
               HTTP_METHOD = :get
               HTTP_PATH = ''
+              HTTP_SUCCESS_CODE = 200
 
               PARAMETERS = [ ]
 
               attr_accessor :arguments, :options, :missing_required_arguments
+
+              attr_writer :parameters, :path, :body, :query
+
+              def initialize(args = { }, options = { })
+                @options = options.dup
+                @client = options[:client]
+                @missing_required_arguments = [ ]
+                @arguments = process_parameters(parameters, args)
+                post_process_arguments unless options.fetch(:skip_post_process_arguments, false)
+              end
 
               def normalize_parameter_name(name)
                 name.respond_to?(:to_s) ? name.to_s.gsub('_', '').downcase : name
@@ -27,7 +38,7 @@ module Ubiquity
                     proper_parameter_name = k[:name]
                     param_name = normalize_parameter_name(proper_parameter_name)
                     has_key = args.has_key?(param_name)
-                    has_key ||= (k[:aliases] || [ ]).find { |a| param_name = args.has_key?(a) }
+                    param_name = ( (k[:aliases] || [ ]).map { |a| a.to_s }.find { |a| has_key = args.has_key?(a) } || param_name ) unless has_key
                     unless has_key or k.has_key?(:default_value)
                       @missing_required_arguments << proper_parameter_name if k[:required]
                       next
@@ -49,16 +60,12 @@ module Ubiquity
                 Hash[ hash.dup.map { |k,v| [ normalize_parameter_name(k), v ] } ]
               end
 
-              def initialize(args = { }, options = { })
-                @options = options.dup
-                @client = options[:client]
-                @missing_required_arguments = [ ]
-                @arguments = process_parameters(self.class::PARAMETERS, args)
-                post_process_arguments unless options.fetch(:skip_post_process_arguments, false)
-              end
-
               def post_process_arguments
                 # TO BE IMPLEMENTED IN CHILD CLASS
+              end
+
+              def parameters
+                @parameters ||= self.class::PARAMETERS.dup
               end
 
               def path

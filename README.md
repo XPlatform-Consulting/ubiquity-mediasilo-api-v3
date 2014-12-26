@@ -1,6 +1,6 @@
 # Ubiquity::Mediasilo::Api::V3
 
-A Library and Utilities to Interact with the MediaSilo API
+A Library and Utilities to Interact with the MediaSilo API v3
 
 ## Installation
 

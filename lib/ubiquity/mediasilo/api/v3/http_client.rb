@@ -8,11 +8,12 @@ require 'ubiquity/mediasilo/api/v3'
 
 module Ubiquity
   module MediaSilo
-    module API
+    class API
       module V3
 
         class HTTPClient
 
+          # Ruby uses all lower case headers but Jetty uses case sensitive headers
           class CaseSensitiveHeaderKey < String
             def downcase; self end
             def capitalize; self end
@@ -91,13 +92,10 @@ module Ubiquity
           # @param [HTTPRequest|HTTPResponse] obj
           # @return [String]
           def format_body_for_log_output(obj)
-            #obj.body.inspect
-            output = ''
             if obj.content_type == 'application/json'
               if @log_pretty_print_body
                 _body = obj.body
-                output << "\n"
-                output << JSON.pretty_generate(JSON.parse(_body)) rescue _body
+                output = "\n" << JSON.pretty_generate(JSON.parse(_body)) rescue _body
                 return output
               else
                 return obj.body
@@ -108,6 +106,7 @@ module Ubiquity
           end
 
           def send_request(request)
+            @response_parsed = nil
             @request = request
             logger.debug { %(REQUEST: #{request.method} http#{http.use_ssl? ? 's' : ''}://#{http.address}:#{http.port}#{request.path} HEADERS: #{request.to_hash.inspect} #{log_request_body and request.request_body_permitted? ? "BODY: #{format_body_for_log_output(request)}" : ''}) }
 
@@ -118,11 +117,16 @@ module Ubiquity
           end
 
           def response_parsed
-            JSON.parse(response.body) rescue response
+            @response_parsed ||= case response.content_type
+              when 'application/json'
+                JSON.parse(response.body) rescue response
+              else
+                response.body
+            end
           end
 
-          def build_uri(path = '', query = { })
-            _query = query.is_a?(Hash) ? query.map { |k,v| "#{CGI.escape(k)}=#{CGI.escape(v)}" }.join('&') : query
+          def build_uri(path = '', query = nil)
+            _query = query.is_a?(Hash) ? query.map { |k,v| "#{CGI.escape(k.to_s)}=#{CGI.escape(v)}" }.join('&') : query
             _path = "#{path}#{_query and _query.respond_to?(:empty?) and !_query.empty? ? "?#{_query}" : ''}"
             URI.parse(File.join(base_uri, _path))
           end

@@ -1,6 +1,6 @@
 module Ubiquity
   module MediaSilo
-    module API
+    class API
       module V3
         VERSION = '0.0.1'
       end

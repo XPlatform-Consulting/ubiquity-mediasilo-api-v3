@@ -22,9 +22,7 @@ module Ubiquity
           attr_accessor :logger, :http, :http_host_address, :http_host_port, :base_uri
           attr_accessor :hostname, :username, :password
 
-          attr_accessor :default_request_headers,
-                        :authorization_header_name, :authorization_header_value,
-                        :host_context_header_name, :host_context_header_value
+          attr_accessor :default_request_headers
 
           attr_accessor :log_request_body, :log_response_body, :log_pretty_print_body
 
@@ -41,23 +39,29 @@ module Ubiquity
             @hostname = args[:hostname] || ''
             @username = args[:username] || ''
             @password = args[:password] || ''
-
+            @api_key  = args[:api_key]
             @base_uri = args[:base_uri] || "http#{http.use_ssl? ? 's' : ''}://#{http.address}:#{http.port}/v3/"
 
-            @user_agent_default = "#{@hostname}:#{@username} Ruby SDK Version #{Ubiquity::MediaSilo::API::V3::VERSION}"
+            @user_agent_default = "#{@hostname}:#{@username} Ubiquity Ruby SDK Version #{Ubiquity::MediaSilo::API::V3::VERSION}"
 
-            @authorization_header_name ||= CaseSensitiveHeaderKey.new('Authorization')
-            @authorization_header_value ||= 'Basic ' + ["#{username}:#{password}"].pack('m').delete("\r\n")
+            authorization_header_name = CaseSensitiveHeaderKey.new('Authorization')
+            authorization_header_value = 'Basic ' + ["#{username}:#{password}"].pack('m').delete("\r\n")
 
-            @host_context_header_name = CaseSensitiveHeaderKey.new('MediaSiloHostContext')
-            @host_context_header_value = hostname.downcase
+            host_context_header_name = CaseSensitiveHeaderKey.new('MediaSiloHostContext')
+            host_context_header_value = hostname.downcase
 
             @default_request_headers = {
-              'Content-Type' => 'application/json; charset=utf-8',
-              'Accept' => 'application/json',
-              host_context_header_name => host_context_header_value,
-              authorization_header_name => authorization_header_value,
+                'user-agent' => @user_agent_default,
+                'Content-Type' => 'application/json; charset=utf-8',
+                'Accept' => 'application/json',
+                host_context_header_name => host_context_header_value,
+                authorization_header_name => authorization_header_value,
             }
+
+            if @api_key
+              api_key_header_name = CaseSensitiveHeaderKey.new('MediaSiloApiKey')
+              default_request_headers[api_key_header_name] = @api_key
+            end
 
             @log_request_body = args.fetch(:log_request_body, true)
             @log_response_body = args.fetch(:log_response_body, true)
@@ -117,11 +121,18 @@ module Ubiquity
           end
 
           def response_parsed
-            @response_parsed ||= case response.content_type
-              when 'application/json'
-                JSON.parse(response.body) rescue response
-              else
-                response.body
+            @response_parsed ||= begin
+              response_content_type = response.content_type
+              logger.debug { "Parsing Response: #{response_content_type}" }
+
+              case response_content_type
+                when 'application/json'
+                  JSON.parse(response.body) rescue response
+                # when 'text/html'
+                #
+                else
+                  response.body
+              end
             end
           end
 
@@ -129,6 +140,50 @@ module Ubiquity
             _query = query.is_a?(Hash) ? query.map { |k,v| "#{CGI.escape(k.to_s)}=#{CGI.escape(v)}" }.join('&') : query
             _path = "#{path}#{_query and _query.respond_to?(:empty?) and !_query.empty? ? "?#{_query}" : ''}"
             URI.parse(File.join(base_uri, _path))
+          end
+
+          if RUBY_VERSION.start_with? '1.8.'
+            def request_method_name_to_class_name(method_name)
+              method_name.to_s.capitalize
+            end
+          else
+            def request_method_name_to_class_name(method_name)
+              method_name.to_s.capitalize.to_sym
+            end
+          end
+
+          # @param [Symbol] method_name (:get)
+          # @param [Hash] args
+          # @option args [Hash] :headers ({})
+          # @option args [String] :path ('')
+          # @option args [Hash] :query ({})
+          # @option args [Any] :body (nil)
+          # @param [Hash] options
+          # @option options [Hash] :default_request_headers (@default_request_headers)
+          def call_method(method_name = :get, args = { }, options = { })
+            headers = args[:headers] || options[:headers] || { }
+            path = args[:path] || ''
+            query = args[:query] || { }
+            body = args[:body]
+
+            # Allow the default request headers to be overridden
+            _default_request_headers = options.fetch(:default_request_headers, default_request_headers)
+            _default_request_headers ||= { }
+            _headers = _default_request_headers.merge(headers)
+
+            @uri = build_uri(path, query)
+            klass_name = request_method_name_to_class_name(method_name)
+            klass = Net::HTTP.const_get(klass_name)
+
+            request = klass.new(@uri.request_uri, _headers)
+
+            if request.request_body_permitted?
+              _body = (body and !body.is_a?(String)) ? JSON.generate(body) : body
+              logger.debug { "Processing Body: '#{_body}'" }
+              request.body = _body if _body
+            end
+
+            send_request(request)
           end
 
           def delete(path, options = { })

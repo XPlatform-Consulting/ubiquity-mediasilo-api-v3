@@ -5,11 +5,14 @@ class Ubiquity::MediaSilo::API::V3::Client
 
   attr_accessor :logger
 
-  attr_accessor :http_client, :request, :response
+  attr_accessor :http_client, :request, :response, :batch_requests
 
   def initialize(args = { })
     initialize_logger(args)
     initialize_http_client(args)
+
+    @batch_mode = false
+    @batch_requests = [ ]
   end
 
   def initialize_logger(args = { })
@@ -35,34 +38,46 @@ class Ubiquity::MediaSilo::API::V3::Client
     _code and _code.start_with?('2')
   end
 
-  def process_request(request_class, args, options = { })
-    @request = request_class.new(args, options.merge(:client => self))
-    options[:query] = request.query
-    @response = case request_class::HTTP_METHOD
-                  when :delete
-                    http_client.delete(request.path, options)
-                  when :put
-                    http_client.put(request.path, request.body, options)
-                  when :post
-                    http_client.post(request.path, request.body, options)
-                  when :get
-                    http_client.get(request.path, request.query, options)
-                end
+  def process_request(request, options = nil)
+    @response = nil
+    @request = request
+    logger.warn { "Request is Missing Required Arguments: #{request.missing_required_arguments.inspect}" } unless request.missing_required_arguments.empty?
+
+    if batch_mode
+      logger.debug { "Adding Request to Batch. #{request.inspect}" }
+      @batch_requests << request
+      return batch_requests
+    end
+
+    request.client = self unless request.client
+    options ||= request.options
+
+    return (options.fetch(:return_request, true) ? request : nil) unless options.fetch(:execute_request, true)
+
+    #@response = http_client.call_method(request.http_method, { :path => request.path, :query => request.query, :body => request.body }, options)
+    @response = request.execute
   end
 
+  def process_request_using_class(request_class, args = { }, options = { })
+    @response = nil
+    @request = request_class.new(args, options)
+    process_request(request, options)
+  end
+
+
   def asset_copy_to_folder(args = { }, options = { })
-    process_request(Requests::AssetCopyToFolder, args, options)
+    process_request_using_class(Requests::AssetCopyToFolder, args, options)
   end
 
   def asset_copy_to_project(args = { }, options = { })
-    process_request(Requests::AssetCopyToProject, args, options)
+    process_request_using_class(Requests::AssetCopyToProject, args, options)
   end
 
   def asset_create(args = { }, options = { })
     # args_out = Requests::AssetCreate.new(args, options).arguments
     # @response = http_client.post('/assets', args_out)
 
-    process_request(Requests::AssetCreate, args, options)
+    process_request_using_class(Requests::AssetCreate, args, options)
   end
 
   def asset_delete_by_id(args = { }, options = { })
@@ -72,14 +87,33 @@ class Ubiquity::MediaSilo::API::V3::Client
     args = { :assetId => args } if args.is_a?(String)
     # _request = Requests::AssetDelete.new(args, options)
     # @response = http_client.delete(_request.path)
-    process_request(Requests::AssetDelete, args, options)
+    process_request_using_class(Requests::AssetDelete, args, options)
   end
   alias :asset_delete :asset_delete_by_id
 
-  def asset_get_by_id(args = { }, options = { })
-    process_request(Requests::AssetGetById, args, options)
+  # @see http://docs.mediasilo.com/v3.0/docs/edit-asset
+  def asset_edit(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
+        args,
+        {
+            :http_method => :put,
+            :http_path => 'assets/#{path_arguments[:asset_id]}',
+            :parameters => [
+                { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+                { :name => :title, :send_in => :body },
+                { :name => :description, :send_in => :body }
+            ]
+        }
+    )
+    process_request(_request, options)
   end
 
+  # @see http://docs.mediasilo.com/v3.0/docs/asset-detail
+  def asset_get_by_id(args = { }, options = { })
+    process_request_using_class(Requests::AssetGetById, args, options)
+  end
+
+  # @see http://docs.mediasilo.com/v3.0/docs/all-assets
   def assets_get(args = { }, options = { })
     query = options[:query] || { :type => '{"in":"video,image,document,archive,audio"}' }
     @response = http_client.get('/assets', query)
@@ -89,36 +123,120 @@ class Ubiquity::MediaSilo::API::V3::Client
   # @param [Hash] args
   # @option args [String] project_id The Id of the project to get the assets for
   # @return [Array]
+  # @see http://docs.mediasilo.com/v3.0/docs/assets-in-project
   def assets_get_by_project_id(args = { }, options = { })
-    project_id = case args
-                   when String; args
-                   when Hash; args[:id] || args[:project_id]
-                 end
-    @response = http_client.get('/projects/%s/assets' % project_id)
+    return_all_results = options.fetch(:return_all_results, false)
+
+    _request = Requests::BaseRequest.new(
+        args,
+        {
+            :http_path => 'projects/#{path_arguments[:project_id]}/assets',
+            :parameters => [
+                { :name => :project_id, :aliases => [ :id ], :send_in => :path, :required => true },
+                {
+                    :name => :type,
+                    # Received a 500 Request Failed error if 'type' was not set so we default it
+                    :default_value => '{"in":"video,image,document,archive,audio"}',
+                    :send_in => :query
+                }
+            ]
+        }
+    )
+    response = process_request(_request, args)
+
+    response.delete_if { |asset| asset['folderId'] } if response.is_a?(Array) &&!return_all_results
+
+    response
   end
 
   def asset_move_to_folder(args = { }, options = { })
-    process_request(Requests::AssetMoveToFolder, args, options)
+    process_request_using_class(Requests::AssetMoveToFolder, args, options)
   end
 
   def asset_move_to_project(args = { }, options = { })
-    process_request(Requests::AssetMoveToProject, args, options)
+    process_request_using_class(Requests::AssetMoveToProject, args, options)
   end
 
-  def folder_create(args = { })
-    @response = http_client.post('/folders', args)
+  # Executes the queued requests as a batch
+  # @param [Array] requests (@batch_requests)
+  # @param [Hash] options
+  def batch_execute(requests = @batch_requests, options = { })
+    @batch_mode = false
+    _requests = requests.map { |req| req.respond_to?(:to_batchable_request) ? req.to_batchable_request : req }
+    puts _requests.inspect
+    process_request_using_class(Requests::Batch, { :requests => _requests }, options)
+    requests = [ ]
+    @response
   end
 
-  def folder_delete(folder_id)
-    folder_id = folder_id[:id] if folder_id.is_a?(Hash)
-    @response = http_client.delete('/folders/%s' % folder_id)
+  # Sets the batch mode
+  # @param [True,False] value
+  def batch_mode=(value)
+    @batch_mode = value
+    @batch_requests = [ ] if value
+    @batch_mode
+  end
+
+  # Returns true if the client is currently batching requests
+  def batch_mode?
+    @batch_mode
+  end
+  alias :batch_mode :batch_mode?
+
+  # @not used
+  def batch(requests = [ ], options = { }, &block)
+    if block_given?
+      _original_options = options.dup
+      options[:batch_mode] = true
+      requests = yield options
+      options = _original_options
+    end
+
+    args = { :requests => requests }
+    process_request_using_class(Requests::Batch, args, options)
+  end
+
+  def folder_create(args = { }, options = { })
+    # @response = http_client.post('/folders', args)
+
+    _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_method => :post,
+        :http_path => 'folders',
+        :parameters => [
+          { :name => :name, :send_in => :body },
+          { :name => :projectId, :send_in => :body },
+          { :name => :parentId, :default_value => 0, :send_in => :body }
+        ]
+      }
+    )
+    process_request(_request, options)
+  end
+
+  def folder_delete(args = { }, options = { })
+    # folder_id = folder_id[:id] if folder_id.is_a?(Hash)
+    # @response = http_client.delete('/folders/%s' % folder_id)
+
+    args = { :folder_id => args } if args.is_a?(String)
+    _request = Requests::BaseRequest.new(
+        args,
+        {
+            :http_method => :delete,
+            :http_path => 'folders/#{path_arguments[:folder_id]}',
+            :parameters => [
+                { :name => :folder_id, :aliases => [ :id ], :send_in => :path }
+            ]
+        }.merge(options)
+    )
+    process_request(_request, options)
   end
 
   def folders_get_by_parent_id(args = { })
     folder_id = case args
-                   when String; args
-                   when Hash; args[:id] || args[:parent_id]
-                 end
+                  when String; args
+                  when Hash; args[:id] || args[:parent_id]
+                end
     @response = http_client.get('/folders/%s/subfolders' % folder_id)
   end
 
@@ -130,22 +248,116 @@ class Ubiquity::MediaSilo::API::V3::Client
     @response = http_client.get('/projects/%s/folders' % project_id)
   end
 
-  def project_create(args = { })
-    @response = http_client.post('/projects', args)
+  def metadata_get(args = { }, options = { })
+    args = { :asset_id => args } if args.is_a?(String)
+    _request = Requests::BaseRequest.new(
+        args,
+        {
+            :http_path => 'assets/#{path_arguments[:asset_id]}/metadata',
+            :parameters => [
+                { :name => :asset_id, :aliases => [ :id ], :send_in => :path }
+            ]
+        }.merge(options)
+    )
+    process_request(_request, options)
+  end
+  alias :metadata_get_by_asset_uuid :metadata_get
+
+  def metadata_create(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
+        args,
+        {
+            :http_path => 'assets/#{path_arguments[:asset_id]}/metadata',
+            :parameters => [
+                { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+                { :name => :key, :required => true },
+                { :name => :value, :required => true },
+            ]
+        }.merge(options)
+    )
+    process_request(_request, options)
+  end
+  alias :metadata_set :metadata_create
+  alias :metadata_add :metadata_create
+
+
+  # def metadata_delete(args = { }, options = { })
+  #
+  # end
+  #
+  # def metadata_update(args = { }, options = { })
+  #
+  # end
+
+
+  # @see http://docs.mediasilo.com/v3.0/docs/create-project
+  def project_create(args = { }, options = { })
+    args = { :name => args } if args.is_a?(String)
+    _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_path => 'projects',
+        :http_method => :post,
+        :parameters => [
+          { :name => :name, :send_in => :body, :required => true },
+          { :name => :description, :send_in => :body }
+        ]
+      }.merge(options)
+    )
+    process_request(_request, options)
   end
 
-  def project_delete(project_id)
-    project_id = project_id[:id] if project_id.is_a?(Hash)
-    @response = http_client.delete('/projects/%s' % project_id)
+  def project_delete(args = { }, options = { })
+    args = { :project_id => args } if args.is_a?(String)
+    _request = Requests::BaseRequest.new(
+        args,
+        {
+            :http_path => 'projects/#{path_arguments[:project_id]}',
+            :http_method => :delete,
+            :parameters => [
+                { :name => :project_id, :aliases => [ :id ], :send_in => :path }
+            ]
+        }.merge(options)
+    )
+    process_request(_request, options)
   end
 
-  def project_get_by_id(project_id)
-    project_id = project_id[:id] if project_id.is_a?(Hash)
-    @response = http_client.get('/projects/%s' % project_id)
+  def project_get_by_id(args = { }, options = { })
+    # project_id = project_id[:id] if project_id.is_a?(Hash)
+    # @response = http_client.get('/projects/%s' % project_id)
+
+    args = { :project_id => args } if args.is_a?(String)
+    _request = Requests::BaseRequest.new(
+        args,
+        {
+            :http_path => 'projects/#{path_arguments[:project_id]}',
+            :parameters => [
+                { :name => :project_id, :aliases => [ :id ], :send_in => :path }
+            ]
+        }.merge(options)
+    )
+    process_request(_request, options)
   end
 
-  def projects_get
-    @response = http_client.get('/projects')
+  def projects_get(options = { })
+    #@response = http_client.get('/projects')
+
+    _request = Requests::BaseRequest.new(
+        { },
+        {
+            :http_path => 'projects'
+        }.merge(options)
+    )
+    process_request(_request, options)
+  end
+
+
+  def quicklink_create(args = { }, options = { })
+    process_request_using_class(Requests::QuicklinkCreate, args, options)
+  end
+
+  def quicklink_share(args = { }, options = { })
+    process_request_using_class(Requests::QuicklinkShare, args, options)
   end
 
 end

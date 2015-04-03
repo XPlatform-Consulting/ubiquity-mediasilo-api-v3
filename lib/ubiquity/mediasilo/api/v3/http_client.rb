@@ -28,7 +28,8 @@ module Ubiquity
 
           attr_accessor :request, :response
 
-          DEFAULT_HTTP_HOST_ADDRESS = 'api.mediasilo.com'
+          # DEFAULT_HTTP_HOST_ADDRESS = 'api.mediasilo.com'
+          DEFAULT_HTTP_HOST_ADDRESS = 'p-api-new.mediasilo.com'
           DEFAULT_HTTP_HOST_PORT = 443
 
           def initialize(args = { })

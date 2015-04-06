@@ -30,7 +30,7 @@ class Ubiquity::MediaSilo::API::V3::Client
   end
 
   def error_message
-    ''
+    response.is_a?(String) ? response.gsub(/<[^>]*>/ui,'') : ''
   end
 
   def success?
@@ -73,10 +73,11 @@ class Ubiquity::MediaSilo::API::V3::Client
     process_request_using_class(Requests::AssetCopyToProject, args, options)
   end
 
+  # @see http://docs.mediasilo.com/v3.0/docs/create-asset
   def asset_create(args = { }, options = { })
+
     # args_out = Requests::AssetCreate.new(args, options).arguments
     # @response = http_client.post('/assets', args_out)
-
     process_request_using_class(Requests::AssetCreate, args, options)
   end
 
@@ -94,16 +95,16 @@ class Ubiquity::MediaSilo::API::V3::Client
   # @see http://docs.mediasilo.com/v3.0/docs/edit-asset
   def asset_edit(args = { }, options = { })
     _request = Requests::BaseRequest.new(
-        args,
-        {
-            :http_method => :put,
-            :http_path => 'assets/#{path_arguments[:asset_id]}',
-            :parameters => [
-                { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
-                { :name => :title, :send_in => :body },
-                { :name => :description, :send_in => :body }
-            ]
-        }
+      args,
+      {
+        :http_method => :put,
+        :http_path => 'assets/#{path_arguments[:asset_id]}',
+        :parameters => [
+          { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+          { :name => :title, :send_in => :body },
+          { :name => :description, :send_in => :body }
+        ]
+      }
     )
     process_request(_request, options)
   end
@@ -112,6 +113,44 @@ class Ubiquity::MediaSilo::API::V3::Client
   def asset_get_by_id(args = { }, options = { })
     process_request_using_class(Requests::AssetGetById, args, options)
   end
+
+  # @see http://docs.mediasilo.com/v3.0/docs/add-tag-to-asset
+  def asset_tag_add(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_method => :post,
+        :http_success_code => '204',
+        :http_path => 'assets/#{path_arguments[:asset_id]}/tags',
+        :parameters => [
+          { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+          { :name => :tags, :aliases => [ :tag ], :send_in => :body },
+        ]
+      }
+    )
+    _tags = _request.arguments[:tags]
+    _request.arguments[:tags] = [*_tags] unless _tags.is_a?(Array)
+
+    process_request(_request, options)
+  end
+  alias :asset_tags_add :asset_tag_add
+
+  def asset_tag_delete(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_method => :post,
+        :http_success_code => '204',
+        :http_path => 'assets/#{path_arguments[:asset_id]}/tags/#{path_arguments[:tag]}',
+        :parameters => [
+          { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+          { :name => :tag, :send_in => :path },
+        ]
+      }
+    )
+    process_request(_request, options)
+  end
+  alias :asset_tag_remove :asset_tag_delete
 
   # @see http://docs.mediasilo.com/v3.0/docs/all-assets
   def assets_get(args = { }, options = { })
@@ -128,19 +167,19 @@ class Ubiquity::MediaSilo::API::V3::Client
     return_all_results = options.fetch(:return_all_results, false)
 
     _request = Requests::BaseRequest.new(
-        args,
-        {
-            :http_path => 'projects/#{path_arguments[:project_id]}/assets',
-            :parameters => [
-                { :name => :project_id, :aliases => [ :id ], :send_in => :path, :required => true },
-                {
-                    :name => :type,
-                    # Received a 500 Request Failed error if 'type' was not set so we default it
-                    :default_value => '{"in":"video,image,document,archive,audio"}',
-                    :send_in => :query
-                }
-            ]
-        }
+      args,
+      {
+        :http_path => 'projects/#{path_arguments[:project_id]}/assets',
+        :parameters => [
+          { :name => :project_id, :aliases => [ :id ], :send_in => :path, :required => true },
+          {
+            :name => :type,
+            # Received a 500 Request Failed error if 'type' was not set so we default it
+            :default_value => '{"in":"video,image,document,archive,audio"}',
+            :send_in => :query
+          }
+        ]
+      }
     )
     response = process_request(_request, args)
 
@@ -162,8 +201,8 @@ class Ubiquity::MediaSilo::API::V3::Client
   # @param [Hash] options
   def batch_execute(requests = @batch_requests, options = { })
     @batch_mode = false
+    return [ ] if requests.empty?
     _requests = requests.map { |req| req.respond_to?(:to_batchable_request) ? req.to_batchable_request : req }
-    puts _requests.inspect
     process_request_using_class(Requests::Batch, { :requests => _requests }, options)
     requests = [ ]
     @response
@@ -196,6 +235,7 @@ class Ubiquity::MediaSilo::API::V3::Client
     process_request_using_class(Requests::Batch, args, options)
   end
 
+  # @see http://docs.mediasilo.com/v3.0/docs/create-folder
   def folder_create(args = { }, options = { })
     # @response = http_client.post('/folders', args)
 
@@ -211,6 +251,17 @@ class Ubiquity::MediaSilo::API::V3::Client
         ]
       }
     )
+
+    # arguments = _request.arguments
+    # parent_id = arguments[:parentId]
+    #
+    # if parent_id && parent_id != 0
+    #   logger.debug { 'Unsetting projectId because parentId is set.'  }
+    #   arguments.delete(:projectId)
+    # end
+    #
+    # _request.arguments = arguments
+
     process_request(_request, options)
   end
 
@@ -220,14 +271,14 @@ class Ubiquity::MediaSilo::API::V3::Client
 
     args = { :folder_id => args } if args.is_a?(String)
     _request = Requests::BaseRequest.new(
-        args,
-        {
-            :http_method => :delete,
-            :http_path => 'folders/#{path_arguments[:folder_id]}',
-            :parameters => [
-                { :name => :folder_id, :aliases => [ :id ], :send_in => :path }
-            ]
-        }.merge(options)
+      args,
+      {
+        :http_method => :delete,
+        :http_path => 'folders/#{path_arguments[:folder_id]}',
+        :parameters => [
+          { :name => :folder_id, :aliases => [ :id ], :send_in => :path }
+        ]
+      }.merge(options)
     )
     process_request(_request, options)
   end
@@ -251,13 +302,14 @@ class Ubiquity::MediaSilo::API::V3::Client
   def metadata_get(args = { }, options = { })
     args = { :asset_id => args } if args.is_a?(String)
     _request = Requests::BaseRequest.new(
-        args,
-        {
-            :http_path => 'assets/#{path_arguments[:asset_id]}/metadata',
-            :parameters => [
-                { :name => :asset_id, :aliases => [ :id ], :send_in => :path }
-            ]
-        }.merge(options)
+      args,
+      {
+        :http_path => 'assets/#{path_arguments[:asset_id]}/metadata',
+        :http_success_code => %w(200 404),
+        :parameters => [
+          { :name => :asset_id, :aliases => [ :id ], :send_in => :path }
+        ]
+      }.merge(options)
     )
     process_request(_request, options)
   end
@@ -265,15 +317,16 @@ class Ubiquity::MediaSilo::API::V3::Client
 
   def metadata_create(args = { }, options = { })
     _request = Requests::BaseRequest.new(
-        args,
-        {
-            :http_path => 'assets/#{path_arguments[:asset_id]}/metadata',
-            :parameters => [
-                { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
-                { :name => :key, :required => true },
-                { :name => :value, :required => true },
-            ]
-        }.merge(options)
+      args,
+      {
+        :http_path => 'assets/#{path_arguments[:asset_id]}/metadata',
+        :http_method => :post,
+        :parameters => [
+          { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+          { :name => :key, :send_in => :body, :required => true },
+          { :name => :value, :send_in => :body, :required => true },
+        ]
+      }.merge(options)
     )
     process_request(_request, options)
   end
@@ -281,13 +334,38 @@ class Ubiquity::MediaSilo::API::V3::Client
   alias :metadata_add :metadata_create
 
 
-  # def metadata_delete(args = { }, options = { })
-  #
-  # end
-  #
-  # def metadata_update(args = { }, options = { })
-  #
-  # end
+  # @see http://docs.mediasilo.com/v3.0/docs/delete
+  def metadata_delete(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_path => 'assets/#{path_arguments[:asset_id]}/metadata/#{path_arguments[:metadata_key]}',
+        :http_method => :delete,
+        :parameters => [
+          { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+          { :name => :metadata_key, :aliases => [ :key ], :send_in => :path },
+        ]
+      }.merge(options)
+    )
+    process_request(_request, options)
+  end
+
+  # @see http://docs.mediasilo.com/v3.0/docs/update
+  def metadata_update(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_path => 'assets/#{path_arguments[:asset_id]}/metadata',
+        :http_method => :put,
+        :parameters => [
+          { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+          { :name => :key, :send_in => :body, :required => true },
+          { :name => :value, :send_in => :body, :required => true },
+        ]
+      }.merge(options)
+    )
+    process_request(_request, options)
+  end
 
 
   # @see http://docs.mediasilo.com/v3.0/docs/create-project
@@ -310,14 +388,14 @@ class Ubiquity::MediaSilo::API::V3::Client
   def project_delete(args = { }, options = { })
     args = { :project_id => args } if args.is_a?(String)
     _request = Requests::BaseRequest.new(
-        args,
-        {
-            :http_path => 'projects/#{path_arguments[:project_id]}',
-            :http_method => :delete,
-            :parameters => [
-                { :name => :project_id, :aliases => [ :id ], :send_in => :path }
-            ]
-        }.merge(options)
+      args,
+      {
+        :http_path => 'projects/#{path_arguments[:project_id]}',
+        :http_method => :delete,
+        :parameters => [
+          { :name => :project_id, :aliases => [ :id ], :send_in => :path }
+        ]
+      }.merge(options)
     )
     process_request(_request, options)
   end
@@ -328,13 +406,13 @@ class Ubiquity::MediaSilo::API::V3::Client
 
     args = { :project_id => args } if args.is_a?(String)
     _request = Requests::BaseRequest.new(
-        args,
-        {
-            :http_path => 'projects/#{path_arguments[:project_id]}',
-            :parameters => [
-                { :name => :project_id, :aliases => [ :id ], :send_in => :path }
-            ]
-        }.merge(options)
+      args,
+      {
+        :http_path => 'projects/#{path_arguments[:project_id]}',
+        :parameters => [
+          { :name => :project_id, :aliases => [ :id ], :send_in => :path }
+        ]
+      }.merge(options)
     )
     process_request(_request, options)
   end
@@ -343,10 +421,10 @@ class Ubiquity::MediaSilo::API::V3::Client
     #@response = http_client.get('/projects')
 
     _request = Requests::BaseRequest.new(
-        { },
-        {
-            :http_path => 'projects'
-        }.merge(options)
+      { },
+      {
+        :http_path => 'projects'
+      }.merge(options)
     )
     process_request(_request, options)
   end
@@ -359,5 +437,6 @@ class Ubiquity::MediaSilo::API::V3::Client
   def quicklink_share(args = { }, options = { })
     process_request_using_class(Requests::QuicklinkShare, args, options)
   end
+
 
 end

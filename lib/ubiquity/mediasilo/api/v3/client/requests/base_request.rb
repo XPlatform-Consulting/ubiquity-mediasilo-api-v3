@@ -205,7 +205,7 @@ module Ubiquity
 
               def to_batchable_request
                 _output = { :method => http_method.upcase, :resourcePath => relative_path }
-                _output[:payload] = { :body => body } if (![:delete, :get, :options].include?(http_method) & body)
+                _output[:payload] = body if (![:delete, :get, :options].include?(http_method) & body)
                 _output
               end
               alias :as_batchable_request :to_batchable_request

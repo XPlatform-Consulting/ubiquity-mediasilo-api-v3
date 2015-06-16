@@ -18,7 +18,7 @@ module Ubiquity
               PARAMETERS = [ ]
 
               attr_accessor :client, :arguments, :options, :initial_arguments, :missing_required_arguments,
-                            :default_parameter_send_in_value, :processed_parameters, :initialized
+                            :default_parameter_send_in_value, :processed_parameters, :initialized, :response
 
               attr_writer :parameters, :path, :body, :query
 
@@ -109,8 +109,9 @@ module Ubiquity
 
                 @response = nil
 
-                @initialized = true
                 @http_success_code = options[:http_success_code] || HTTP_SUCCESS_CODE
+
+                @initialized = true
               end
               alias :reset_attributes :initialize_attributes
 
@@ -148,7 +149,7 @@ module Ubiquity
               end
 
               def body
-                body_arguments.empty? ? nil : body_arguments
+                @body ||= body_arguments.empty? ? nil : body_arguments
               end
 
               def client
@@ -204,7 +205,7 @@ module Ubiquity
               # @!endgroup
 
               def to_batchable_request
-                _output = { :method => http_method.upcase, :resourcePath => relative_path }
+                _output = { :method => http_method.to_s.upcase, :resourcePath => relative_path }
                 _output[:payload] = body if (![:delete, :get, :options].include?(http_method) & body)
                 _output
               end
@@ -225,7 +226,8 @@ module Ubiquity
               end
 
               def success?
-                @response and ([*http_success_code].include?(@response.code))
+                _response = @response and ([*http_success_code].include?(client.http_client.response.code))
+                _response
               end
 
             end

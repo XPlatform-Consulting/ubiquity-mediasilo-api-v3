@@ -19,12 +19,8 @@ module Ubiquity
 
     def self.default_arguments
       @default_arguments ||= {
-          :options_file_path => default_options_file_path,
+        :options_file_path => default_options_file_path,
       }
-    end
-
-    def self.help_usage_default
-      "  #{executable_name} -h | --help"
     end
 
     def self.help_usage
@@ -35,6 +31,10 @@ module Ubiquity
     def self.help_usage_append(string = '')
       usage_string = "\n    #{executable_name} #{string}"
       @help_usage << usage_string unless (@help_usage ||= help_usage_default).include?(usage_string)
+    end
+
+    def self.help_usage_default
+      "  #{executable_name} -h | --help"
     end
 
     def self.help
@@ -71,27 +71,30 @@ Options:
     end
 
     def self.arguments_from_command_line(array_of_arguments = ARGV)
-      @arguments_from_command_line ||= begin
-        arguments_before = arguments.dup
-        arguments.clear
-
-        argument_parser.parse!(array_of_arguments.dup)
-        _arguments_from_options_file = arguments.dup
-        @arguments = arguments_before
-        _arguments_from_options_file
-      end
+      @arguments_from_command_line ||= parse_arguments_from_command_line(array_of_arguments)
     end
 
     def self.arguments_from_options_file(options_file_path = arguments[:options_file_path])
-      @arguments_from_options_file ||= begin
-        arguments_before = arguments.dup
-        arguments.clear
+      @arguments_from_options_file ||= parse_arguments_from_options_file(options_file_path)
+    end
 
-        argument_parser.load(options_file_path)
-        _arguments_from_options_file = arguments.dup
-        @arguments = arguments_before
-        _arguments_from_options_file
-      end
+    def self.parse_arguments_from_command_line(array_of_arguments = ARGV)
+      arguments_before = arguments.dup
+      arguments.clear
+
+      argument_parser.parse!(array_of_arguments.dup)
+      _arguments_from_options_file = arguments.dup
+      @arguments = arguments_before
+      _arguments_from_options_file
+    end
+
+    def self.parse_arguments_from_options_file(options_file_path = arguments[:options_file_path])
+      arguments_before = arguments.dup
+      arguments.clear
+      argument_parser.load(options_file_path)
+      _arguments_from_options_file = arguments.dup
+      @arguments = arguments_before
+      _arguments_from_options_file
     end
 
     def self.parse_arguments

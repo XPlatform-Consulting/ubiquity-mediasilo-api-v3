@@ -13,6 +13,8 @@ module Ubiquity
 
         class HTTPClient
 
+          class RateLimitException < StandardError; end
+
           # Ruby uses all lower case headers but Jetty uses case sensitive headers
           class CaseSensitiveHeaderKey < String
             def downcase; self end
@@ -68,6 +70,8 @@ module Ubiquity
             @log_response_body = args.fetch(:log_response_body, true)
             @log_pretty_print_body = args.fetch(:log_pretty_print_body, true)
 
+            @delay_between_rate_limit_retries = 300
+            @cancelled = false
             @parse_response = args.fetch(:parse_response, true)
           end
 
@@ -110,15 +114,32 @@ module Ubiquity
             end
           end
 
+          # @param [Net::HTTPRequest] request
           def send_request(request)
             @response_parsed = nil
             @request = request
-            logger.debug { %(REQUEST: #{request.method} http#{http.use_ssl? ? 's' : ''}://#{http.address}:#{http.port}#{request.path} HEADERS: #{request.to_hash.inspect} #{log_request_body and request.request_body_permitted? ? "BODY: #{format_body_for_log_output(request)}" : ''}) }
 
-            @response = http.request(request)
-            logger.debug { %(RESPONSE: #{response.inspect} HEADERS: #{response.to_hash.inspect} #{log_response_body and response.respond_to?(:body) ? "BODY: #{format_body_for_log_output(response)}" : ''}) }
+            begin
+              logger.debug { %(REQUEST: #{request.method} http#{http.use_ssl? ? 's' : ''}://#{http.address}:#{http.port}#{request.path} HEADERS: #{request.to_hash.inspect} #{log_request_body and request.request_body_permitted? ? "BODY: #{format_body_for_log_output(request)}" : ''}) }
+
+              @response = http.request(request)
+              logger.debug { %(RESPONSE: #{response.inspect} HEADERS: #{response.to_hash.inspect} #{log_response_body and response.respond_to?(:body) ? "BODY: #{format_body_for_log_output(response)}" : ''}) }
+              raise RateLimitException, "#{response.to_hash.inspect}" if response.code == '420'
+            rescue RateLimitException => e
+              logger.warn { "Rate Limited. Will retry in #{@delay_between_rate_limit_retries} seconds." }
+              sleep_break @delay_between_rate_limit_retries
+              retry unless @cancelled
+            end
 
             @parse_response ? response_parsed : response.body
+          end
+
+          def sleep_break(seconds)
+            while (seconds > 0)
+              sleep(1)
+              seconds -= 1
+              break if @cancelled
+            end
           end
 
           def response_parsed
@@ -130,7 +151,7 @@ module Ubiquity
                 when 'application/json'
                   JSON.parse(response.body) rescue response
                 # when 'text/html'
-                #
+                # when 'text/plain'
                 else
                   response.body
               end
@@ -190,7 +211,15 @@ module Ubiquity
           def delete(path, options = { })
             query = options.fetch(:query, { })
             @uri = build_uri(path, query)
+
+
             request = Net::HTTP::Delete.new(@uri.request_uri, default_request_headers)
+            body = options[:body]
+            if body
+              body = JSON.generate(body) unless body.is_a?(String)
+              request.body = body
+            end
+
             send_request(request)
           end
 

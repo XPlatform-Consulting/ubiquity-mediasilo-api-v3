@@ -1,9 +1,11 @@
 module Ubiquity::MediaSilo::API::V3::Client::Requests
 
+  # @see http://docs.mediasilo.com/v3.0/docs/create-asset
   class AssetCreate < BaseRequest
 
     HTTP_METHOD = :post
     HTTP_PATH = '/assets'
+    DEFAULT_PARAMETER_SEND_IN_VALUE = :body
 
     PARAMETERS = [
       { :name => :projectId, :required => true },
@@ -14,13 +16,8 @@ module Ubiquity::MediaSilo::API::V3::Client::Requests
       :isPrivate
     ]
 
-    def post_process_arguments
-      if options.fetch(:escape_source_url, true)
-        _source_url = arguments[:sourceUrl]
-        if options.fetch(:force_escape_source_url, false) or (_source_url == CGI.unescape(_source_url))
-          arguments[:sourceUrl] = CGI.escape(_source_url)
-        end
-      end
+    def after_process_parameters
+      arguments.delete(:folderId) if arguments[:folderId].to_s == '0'
     end
 
   end

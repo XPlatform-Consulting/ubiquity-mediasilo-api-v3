@@ -381,7 +381,7 @@ class Ubiquity::MediaSilo::API::V3::Client
   end
   alias :metadata_set :metadata_create_or_update
   alias :metadata_add :metadata_create_or_update
-
+  alias :metadata_create_if_not_exists :metadata_create_or_update
 
   # @see http://docs.mediasilo.com/v3.0/docs/delete
   def metadata_delete(args = { }, options = { })

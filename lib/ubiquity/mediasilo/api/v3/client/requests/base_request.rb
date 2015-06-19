@@ -17,7 +17,7 @@ module Ubiquity
 
               PARAMETERS = [ ]
 
-              attr_accessor :client, :arguments, :options, :initial_arguments, :missing_required_arguments,
+              attr_accessor :client, :arguments, :options, :initial_arguments, :initial_options, :missing_required_arguments,
                             :default_parameter_send_in_value, :processed_parameters, :initialized, :response
 
               attr_writer :parameters, :path, :body, :query
@@ -74,6 +74,8 @@ module Ubiquity
 
               def initialize(args = { }, options = { })
                 @initial_arguments = args.dup
+                @initial_options = options.dup
+
                 @options = options.dup
 
                 initialize_attributes if options.fetch(:initialize_attributes, true)
@@ -115,10 +117,10 @@ module Ubiquity
               end
               alias :reset_attributes :initialize_attributes
 
-              def process_parameters(params = parameters, args = @initial_arguments, options = @options)
-                before_process_parameters unless options.fetch(:skip_before_process_parameters, false)
-                self.class.process_parameters(params, args, options.merge(:processed_parameters => processed_parameters, :missing_required_arguments => missing_required_arguments, :default_parameter_send_in_value => default_parameter_send_in_value, :arguments_out => arguments))
-                after_process_parameters unless options.fetch(:skip_after_process_parameters, false)
+              def process_parameters(params = parameters, args = @initial_arguments, _options = @options)
+                before_process_parameters unless _options.fetch(:skip_before_process_parameters, false)
+                self.class.process_parameters(params, args, _options.merge(:processed_parameters => processed_parameters, :missing_required_arguments => missing_required_arguments, :default_parameter_send_in_value => default_parameter_send_in_value, :arguments_out => arguments))
+                after_process_parameters unless _options.fetch(:skip_after_process_parameters, false)
               end
 
               def before_process_parameters

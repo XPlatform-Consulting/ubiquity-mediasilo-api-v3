@@ -223,12 +223,20 @@ module Ubiquity
               #   client.response if client
               # end
 
+              def http_client
+                client.http_client
+              end
+
+              def http_response
+                @http_response ||= http_client.response.dup rescue nil
+              end
+
               def execute
-                @response = client.http_client.call_method(http_method, { :path => relative_path, :query => query, :body => body }, options) if client
+                @response = http_client.call_method(http_method, { :path => relative_path, :query => query, :body => body }, options) if client
               end
 
               def success?
-                _response = @response and ([*http_success_code].include?(client.http_client.response.code))
+                _response = @response and ([*http_success_code].include?(http_response.code))
                 _response
               end
 

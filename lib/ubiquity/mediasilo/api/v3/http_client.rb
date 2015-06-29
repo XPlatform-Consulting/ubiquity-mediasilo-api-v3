@@ -21,6 +21,7 @@ module Ubiquity
             def capitalize; self end
           end
 
+
           attr_accessor :logger, :http, :http_host_address, :http_host_port, :base_uri
           attr_accessor :hostname, :username, :password
 

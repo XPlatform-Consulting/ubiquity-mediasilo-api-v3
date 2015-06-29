@@ -8,6 +8,7 @@ require 'ubiquity/mediasilo/api/v3/client/requests/asset_get_by_id'
 require 'ubiquity/mediasilo/api/v3/client/requests/asset_move_to_folder'
 require 'ubiquity/mediasilo/api/v3/client/requests/asset_move_to_project'
 
+require 'ubiquity/mediasilo/api/v3/client/requests/assets_get'
 require 'ubiquity/mediasilo/api/v3/client/requests/assets_get_by_folder_id'
 require 'ubiquity/mediasilo/api/v3/client/requests/assets_get_by_project_id'
 

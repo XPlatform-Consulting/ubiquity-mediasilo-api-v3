@@ -1,5 +1,6 @@
 require 'ubiquity/mediasilo/api/v3/http_client'
 require 'ubiquity/mediasilo/api/v3/client/requests'
+require 'ubiquity/mediasilo/api/v3/client/paginator'
 
 class Ubiquity::MediaSilo::API::V3::Client
 
@@ -46,6 +47,7 @@ class Ubiquity::MediaSilo::API::V3::Client
   # @option options [Boolean] :return_request (true) Will return the request instance instead of nil. Only applies if
   #   execute_request is false.
   def process_request(request, options = nil)
+    @paginator = nil
     @response = nil
     @request = request
     logger.warn { "Request is Missing Required Arguments: #{request.missing_required_arguments.inspect}" } unless request.missing_required_arguments.empty?
@@ -56,6 +58,13 @@ class Ubiquity::MediaSilo::API::V3::Client
       return batch_requests
     end
 
+    if ([:all, 'all'].include?(request.arguments[:_page]))
+      request.arguments[:_page] = 1
+      include_remaining_pages = true
+    else
+      include_remaining_pages = false
+    end
+
     request.client = self unless request.client
     options ||= request.options
 
@@ -63,7 +72,16 @@ class Ubiquity::MediaSilo::API::V3::Client
 
     #@response = http_client.call_method(request.http_method, { :path => request.path, :query => request.query, :body => request.body }, options)
     @response = request.execute
+
+    if include_remaining_pages
+      return paginator.include_remaining_pages
+    end
+
     @response
+  end
+
+  def paginator
+    @paginator ||= Paginator.new(self) if @response
   end
 
   def process_request_using_class(request_class, args = { }, options = { })
@@ -120,49 +138,13 @@ class Ubiquity::MediaSilo::API::V3::Client
     process_request_using_class(Requests::AssetGetById, args, options)
   end
 
-  # @see http://docs.mediasilo.com/v3.0/docs/add-tag-to-asset
-  def asset_tag_add(args = { }, options = { })
-    _request = Requests::BaseRequest.new(
-      args,
-      {
-        :http_method => :post,
-        :http_success_code => '204',
-        :http_path => 'assets/#{path_arguments[:asset_id]}/tags',
-        :parameters => [
-          { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
-          { :name => :tags, :aliases => [ :tag ], :send_in => :body },
-        ]
-      }
-    )
-    _tags = _request.arguments[:tags]
-    _request.arguments[:tags] = [*_tags] unless _tags.is_a?(Array)
-
-    process_request(_request, options)
-  end
-  alias :asset_tags_add :asset_tag_add
-  alias :asset_add_tag :asset_tag_add
-
-  def asset_tag_delete(args = { }, options = { })
-    _request = Requests::BaseRequest.new(
-      args,
-      {
-        :http_method => :delete,
-        :http_success_code => '204',
-        :http_path => 'assets/#{path_arguments[:asset_id]}/tags/#{path_arguments[:tag]}',
-        :parameters => [
-          { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
-          { :name => :tag, :send_in => :path },
-        ]
-      }
-    )
-    process_request(_request, options)
-  end
-  alias :asset_tag_remove :asset_tag_delete
-
   # @see http://docs.mediasilo.com/v3.0/docs/all-assets
   def assets_get(args = { }, options = { })
-    query = options[:query] || { :type => '{"in":"video,image,document,archive,audio"}' }
-    @response = http_client.get('/assets', query)
+    # query = options[:query] || { :type => '{"in":"video,image,document,archive,audio"}' }
+    # @response = http_client.get('/assets', query)
+    _response = process_request_using_class(Requests::AssetsGet, args, options)
+    _response = [ ] unless _response.is_a?(Array)
+    _response
   end
 
   # @note This will get all assets for a folder
@@ -232,6 +214,45 @@ class Ubiquity::MediaSilo::API::V3::Client
   def asset_move_to_project(args = { }, options = { })
     process_request_using_class(Requests::AssetMoveToProject, args, options)
   end
+
+  # @see http://docs.mediasilo.com/v3.0/docs/add-tag-to-asset
+  def asset_tag_add(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
+        args,
+        {
+            :http_method => :post,
+            :http_success_code => '204',
+            :http_path => 'assets/#{path_arguments[:asset_id]}/tags',
+            :parameters => [
+                { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+                { :name => :tags, :aliases => [ :tag ], :send_in => :body },
+            ]
+        }
+    )
+    _tags = _request.arguments[:tags]
+    _request.arguments[:tags] = [*_tags] unless _tags.is_a?(Array)
+
+    process_request(_request, options)
+  end
+  alias :asset_tags_add :asset_tag_add
+  alias :asset_add_tag :asset_tag_add
+
+  def asset_tag_delete(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
+        args,
+        {
+            :http_method => :delete,
+            :http_success_code => '204',
+            :http_path => 'assets/#{path_arguments[:asset_id]}/tags/#{path_arguments[:tag]}',
+            :parameters => [
+                { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+                { :name => :tag, :send_in => :path },
+            ]
+        }
+    )
+    process_request(_request, options)
+  end
+  alias :asset_tag_remove :asset_tag_delete
 
   # Executes the queued requests as a batch
   # @param [Array] requests (@batch_requests)
@@ -357,10 +378,14 @@ class Ubiquity::MediaSilo::API::V3::Client
         ]
       }.merge(options)
     )
-    process_request(_request, options)
+    _response = process_request(_request, options)
+    return [] if _request.client.http_client.response.code == '404'
+
+    _response
   end
   alias :metadata_get_by_asset_uuid :metadata_get
 
+  # @see http://docs.mediasilo.com/v3.0/docs/add-metadata
   def metadata_create_or_update(args = { }, options = { })
     _request = Requests::BaseRequest.new(
       args,
@@ -376,6 +401,7 @@ class Ubiquity::MediaSilo::API::V3::Client
       }.merge(options)
     )
     metadata = _request.body_arguments.delete(:metadata) { }
+    metadata = metadata.map { |k,v| { 'key' => k, 'value' => v} } if metadata.is_a?(Hash)
     _request.body = metadata if metadata
     process_request(_request, options)
   end
@@ -400,7 +426,7 @@ class Ubiquity::MediaSilo::API::V3::Client
   end
 
   # @see http://docs.mediasilo.com/v3.0/docs/update
-  def metadata_mirror(args = { }, options = { })
+  def metadata_replace(args = { }, options = { })
     _request = Requests::BaseRequest.new(
       args,
       {
@@ -415,10 +441,11 @@ class Ubiquity::MediaSilo::API::V3::Client
       }.merge(options)
     )
     metadata = _request.body_arguments.delete(:metadata) { }
+    metadata = metadata.map { |k,v| { 'key' => k, 'value' => v} } if metadata.is_a?(Hash)
     _request.body = metadata if metadata
     process_request(_request, options)
   end
-
+  alias :metadata_mirror :metadata_replace
 
   # @see http://docs.mediasilo.com/v3.0/docs/create-project
   def project_create(args = { }, options = { })

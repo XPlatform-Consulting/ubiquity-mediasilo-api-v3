@@ -14,5 +14,5 @@ require 'ubiquity/mediasilo/api/v3/client/requests/assets_get_by_project_id'
 
 require 'ubiquity/mediasilo/api/v3/client/requests/batch'
 
-require 'ubiquity/mediasilo/api/v3/client/requests/quicklink_create'
-require 'ubiquity/mediasilo/api/v3/client/requests/quicklink_share'
+# require 'ubiquity/mediasilo/api/v3/client/requests/quicklink_create'
+# require 'ubiquity/mediasilo/api/v3/client/requests/quicklink_share'

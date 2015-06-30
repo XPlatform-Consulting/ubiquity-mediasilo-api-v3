@@ -186,13 +186,13 @@ module Ubiquity
               def path_arguments
                 @path_arguments ||= Hash[
                     arguments.dup.delete_if { |k, _| processed_parameters[k][:send_in] != :path }.
-                        map { |k,v| [ k, CGI.escape(v.respond_to?(:to_s) ? v.to_s : '') ] }
+                        map { |k,v| [ k, CGI.escape(v.respond_to?(:to_s) ? v.to_s : '').gsub('+', '%20') ] }
                 ]
               end
 
               def query
                 @query ||= begin
-                  query_arguments.is_a?(Hash) ? query_arguments.map { |k,v| "#{CGI.escape(k.to_s)}=#{CGI.escape(v.respond_to?(:to_s) ? v.to_s : v)}" }.join('&') : query_arguments
+                  query_arguments.is_a?(Hash) ? query_arguments.map { |k,v| "#{CGI.escape(k.to_s).gsub('+', '%20')}=#{CGI.escape(v.respond_to?(:to_s) ? v.to_s : v).gsub('+', '%20')}" }.join('&') : query_arguments
                 end
               end
 
@@ -236,7 +236,7 @@ module Ubiquity
               end
 
               def success?
-                _response = @response and ([*http_success_code].include?(http_response.code))
+                _response = http_response and ([*http_success_code].include?(http_response.code))
                 _response
               end
 

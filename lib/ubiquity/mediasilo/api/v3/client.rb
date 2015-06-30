@@ -123,6 +123,7 @@ class Ubiquity::MediaSilo::API::V3::Client
       {
         :http_method => :put,
         :http_path => 'assets/#{path_arguments[:asset_id]}',
+        :http_success_code => 204,
         :parameters => [
           { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
           { :name => :title, :send_in => :body },
@@ -135,6 +136,7 @@ class Ubiquity::MediaSilo::API::V3::Client
 
   # @see http://docs.mediasilo.com/v3.0/docs/asset-detail
   def asset_get_by_id(args = { }, options = { })
+    args = { :asset_id => args } if args.is_a?(String)
     process_request_using_class(Requests::AssetGetById, args, options)
   end
 
@@ -350,6 +352,20 @@ class Ubiquity::MediaSilo::API::V3::Client
     process_request(_request, options)
   end
 
+  def folder_get_by_id(args = { }, options = { })
+    args = { :folder_id => args } if args.is_a?(String)
+    _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_path => 'folders/#{path_arguments[:folder_id]}',
+        :parameters => [
+          { :name => :folder_id, :aliases => [ :id ], :send_in => :path }
+        ]
+      }.merge(options)
+    )
+    process_request(_request, options)
+  end
+
   def folders_get_by_parent_id(args = { })
     folder_id = case args
                   when String; args
@@ -392,6 +408,7 @@ class Ubiquity::MediaSilo::API::V3::Client
       {
         :http_path => 'assets/#{path_arguments[:asset_id]}/metadata',
         :http_method => :post,
+        :http_success_code => 204,
         :parameters => [
           { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
           { :name => :key, :send_in => :body},
@@ -401,8 +418,9 @@ class Ubiquity::MediaSilo::API::V3::Client
       }.merge(options)
     )
     metadata = _request.body_arguments.delete(:metadata) { }
-    metadata = metadata.map { |k,v| { 'key' => k, 'value' => v} } if metadata.is_a?(Hash)
-    _request.body = metadata if metadata
+    metadata = metadata.map { |k,v| { 'key' => k, 'value' => v } } if metadata.is_a?(Hash)
+
+    _request.body = metadata.delete_if { |h| v = h['value']; (v.respond_to?(:empty?) && v.empty?) } if metadata
     process_request(_request, options)
   end
   alias :metadata_set :metadata_create_or_update

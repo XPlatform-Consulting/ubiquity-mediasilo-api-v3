@@ -126,6 +126,7 @@ module Ubiquity
               def before_process_parameters
                 # TO BE IMPLEMENTED IN CHILD CLASS
               end
+              alias :pre_process_arguments :before_process_parameters
 
               def after_process_parameters
                 # TO BE IMPLEMENTED IN CHILD CLASS

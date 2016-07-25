@@ -4,15 +4,17 @@ module Ubiquity::MediaSilo::API::V3::Client::Requests
 
     HTTP_METHOD = :post
     HTTP_PATH = '/quicklinks'
+    DEFAULT_PARAMETER_SEND_IN_VALUE = :body
 
     PARAMETERS = [
       { :name => :title, :required => true },
       :description,
       :assetIds,
-      # :configuration,
-      # :settings,
-      # :expires,
+      :configuration,
+      :expires,
+      :authorizedUserIds,
 
+      # :settings,
       # :configuration_id,
       # :audience,
       # :playback,

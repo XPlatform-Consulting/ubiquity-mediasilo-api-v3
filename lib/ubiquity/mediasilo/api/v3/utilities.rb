@@ -62,7 +62,7 @@ class Ubiquity::MediaSilo::API::V3::Utilities < Ubiquity::MediaSilo::API::V3::Cl
     additional_asset_create_params['description'] = asset_description if asset_description
 
     overwrite_existing_asset = args.fetch(:overwrite_existing_asset, false)
-    asset_search_field_name = args.fetch(:asset_search_field_name, :filename)
+    asset_search_field_name = args[:asset_search_field_name] || :filename
 
     #logger.info { "Creating Asset on MediaSilo Using File Path: '#{file_path}'. File URL: #{file_url}" }
 
@@ -386,6 +386,8 @@ class Ubiquity::MediaSilo::API::V3::Utilities < Ubiquity::MediaSilo::API::V3::Cl
 
     assets
   end
+
+
 
   # Refines asset_get_by_field_search results to exact (full string case sensitive) matches
   #
@@ -973,7 +975,7 @@ class Ubiquity::MediaSilo::API::V3::Utilities < Ubiquity::MediaSilo::API::V3::Cl
   def project_get_by_name(args = { }, options = { })
     project_name = case args
                      when String; args
-                     when Hash; args[:name]
+                     when Hash; args[:name] || args[:project_name]
                    end
 
     case_sensitive = options.fetch(:case_sensitive, default_case_sensitive_search)

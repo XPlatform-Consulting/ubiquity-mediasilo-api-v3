@@ -90,6 +90,43 @@ class Ubiquity::MediaSilo::API::V3::Client
     process_request(request, options)
   end
 
+  # ################################################################################################################## #
+  # @!group API Methods
+
+  # @see https://phoenix.readme.io/docs/aspera-file-download
+  def aspera_file_download_ticket_create(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_path => 'aspera/download/#{path_arguments[:asset_id]}/#{path_arguments[:target]}',
+        :http_method => :post,
+        :parameters => [
+          { :name => :asset_id, :send_in => :path },
+          { :name => :target, :send_in => :path } # Either 'source' or 'proxy'
+        ]
+      }
+    )
+    response = process_request(_request, options)
+    response
+  end
+
+  # @see https://phoenix.readme.io/docs/aspera-file-upload
+  def aspera_file_upload_ticket_create(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_path => 'aspera/upload',
+        :http_method => :post,
+        :parameters => [
+          { :name => :fileName, :send_in => :body }
+        ]
+      }
+    )
+
+    response = process_request(_request, options)
+    response
+  end
+
   def asset_copy_to_folder(args = { }, options = { })
     process_request_using_class(Requests::AssetCopyToFolder, args, options)
   end
@@ -168,11 +205,15 @@ class Ubiquity::MediaSilo::API::V3::Client
             # Received a 500 Request Failed error if 'type' was not set so we default it
             # :default_value => '{"in":"video,image,document,archive,audio"}',
             :send_in => :query
-          }
+          },
+          { :name => :_page, :aliases => [ :page ], :send_in => :query },
+          { :name => :_pageSize, :aliases => [ :page_size ], :send_in => :query },
+          { :name => :_sort, :aliases => [ :sort ], :send_in => :query },
+          { :name => :_sortBy, :aliases => [ :sort_by ], :send_in => :query }
         ]
       }
     )
-    response = process_request(_request, args)
+    response = process_request(_request, options)
     response
   end
 
@@ -196,9 +237,13 @@ class Ubiquity::MediaSilo::API::V3::Client
           {
             :name => :type,
             # Received a 500 Request Failed error if 'type' was not set so we default it
-            :default_value => '{"in":"video,image,document,archive,audio"}',
+            # :default_value => '{"in":"video,image,document,archive,audio"}',
             :send_in => :query
-          }
+          },
+          { :name => :_page, :aliases => [ :page ], :send_in => :query },
+          { :name => :_pageSize, :aliases => [ :page_size ], :send_in => :query },
+          { :name => :_sort, :aliases => [ :sort ], :send_in => :query },
+          { :name => :_sortBy, :aliases => [ :sort_by ], :send_in => :query }
         ]
       }
     )
@@ -220,16 +265,16 @@ class Ubiquity::MediaSilo::API::V3::Client
   # @see http://docs.mediasilo.com/v3.0/docs/add-tag-to-asset
   def asset_tag_add(args = { }, options = { })
     _request = Requests::BaseRequest.new(
-        args,
-        {
-            :http_method => :post,
-            :http_success_code => '204',
-            :http_path => 'assets/#{path_arguments[:asset_id]}/tags',
-            :parameters => [
-                { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
-                { :name => :tags, :aliases => [ :tag ], :send_in => :body },
-            ]
-        }
+      args,
+      {
+        :http_method => :post,
+        :http_success_code => '204',
+        :http_path => 'assets/#{path_arguments[:asset_id]}/tags',
+        :parameters => [
+          { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+          { :name => :tags, :aliases => [ :tag ], :send_in => :body },
+        ]
+      }
     )
     _tags = _request.arguments[:tags]
     _request.arguments[:tags] = [*_tags] unless _tags.is_a?(Array)
@@ -241,20 +286,63 @@ class Ubiquity::MediaSilo::API::V3::Client
 
   def asset_tag_delete(args = { }, options = { })
     _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_method => :delete,
+        :http_success_code => '204',
+        :http_path => 'assets/#{path_arguments[:asset_id]}/tags/#{path_arguments[:tag]}',
+        :parameters => [
+          { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
+          { :name => :tag, :send_in => :path },
+        ]
+      }
+    )
+    process_request(_request, options)
+  end
+  alias :asset_tag_remove :asset_tag_delete
+
+  def asset_upload_ticket_create(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_method => :post,
+        :http_path => 'assets/upload',
+        :parameters => [
+          { :name => :fileName, :send_in => :body }
+        ]
+      }
+    )
+    process_request(_request, options)
+  end
+
+  def asset_upload(args = { }, options = { })
+
+  end
+
+  # This endpoint is available to admins on any user id, or the current user on their own user id. It returns
+  # immediately, and watermarking runs in the background. To check whether the watermarking is done, you need to get
+  # the ‘proxy’ derivative our of the asset response model and check the ‘progress’ key. Be careful, because there are
+  # also ‘progress’ values at the base of the asset response model as well as in the ‘preroll’ derivative. You want
+  # the ‘proxy’ one. When that hits 100, the video is ready to play back.
+  #
+  # @param [Hash] args ({ })
+  # @option args [String] :asset_id
+  # @option args [String] :user_id
+  def asset_watermark_trigger(args = { }, options = { })
+    _request = Requests::BaseRequest.new(
         args,
         {
-            :http_method => :delete,
+            :http_method => :post,
             :http_success_code => '204',
-            :http_path => 'assets/#{path_arguments[:asset_id]}/tags/#{path_arguments[:tag]}',
+            :http_path => 'assets/#{path_arguments[:asset_id]}/watermark/#{path_arguments[:user_id]}',
             :parameters => [
                 { :name => :asset_id, :aliases => [ :id ], :send_in => :path, :required => true },
-                { :name => :tag, :send_in => :path },
+                { :name => :user_id, :send_in => :path },
             ]
         }
     )
     process_request(_request, options)
   end
-  alias :asset_tag_remove :asset_tag_delete
 
   # Executes the queued requests as a batch
   # @param [Array] requests (@batch_requests)
@@ -383,6 +471,8 @@ class Ubiquity::MediaSilo::API::V3::Client
   end
 
   def metadata_get(args = { }, options = { })
+    return_as_hash = options.delete(:return_as_hash) { false }
+
     args = { :asset_id => args } unless args.is_a?(Hash)
     _request = Requests::BaseRequest.new(
       args,
@@ -395,10 +485,15 @@ class Ubiquity::MediaSilo::API::V3::Client
       }.merge(options)
     )
     _response = process_request(_request, options)
-    return [] if _request.client.http_client.response.code == '404'
+
+    return (return_as_hash ? {} : []) if _request.client.http_client.response.code == '404'
+    return false unless _response.is_a?(Array)
+
+    return Hash[ _response.map { |m| [ m['key'], m['value'] ] } ] if return_as_hash
 
     _response
   end
+  alias :metadata_get_by_asset_id :metadata_get
   alias :metadata_get_by_asset_uuid :metadata_get
 
   # @see http://docs.mediasilo.com/v3.0/docs/add-metadata
@@ -530,6 +625,37 @@ class Ubiquity::MediaSilo::API::V3::Client
     return _response
   end
 
+  def project_watermark_settings_get(args = { }, options = { })
+    args = { :project_id => args } if args.is_a?(String)
+    _request = Requests::BaseRequest.new(
+        args,
+        {
+            :http_path => 'projects/#{path_arguments[:project_id]}/watermarkSettings',
+            :parameters => [
+                { :name => :project_id, :aliases => [ :id ], :send_in => :path }
+            ]
+        }.merge(options)
+    )
+    process_request(_request, options)
+  end
+
+  def project_watermark_settings_set(args = { }, options = { })
+    args = { :project_id => args } if args.is_a?(String)
+    _request = Requests::BaseRequest.new(
+        args,
+        {
+            :http_path => 'projects/#{body_arguments[:context]}/watermarkSettings',
+            :http_method => 'PUT',
+            :parameters => [
+                { :name => :context, :aliases => [ :project_id ], :send_in => :body },
+                { :name => :id, :send_in => :body },
+                { :name => :settings, :send_in => :body },
+                { :name => :enabled, :send_in => :body },
+            ]
+        }.merge(options)
+    )
+    process_request(_request, options)
+  end
 
   def quicklink_create(args = { }, options = { })
     process_request_using_class(Requests::QuicklinkCreate, args, options)
@@ -541,17 +667,17 @@ class Ubiquity::MediaSilo::API::V3::Client
 
   def tag_edit(args = { }, options = { })
     _request = Requests::BaseRequest.new(
-        args,
-        {
-          :http_path => 'tags',
-          :http_method => :put,
-          :http_success_code => '204',
-          :parameters => [
-            { :name => :currentName, :required => true, :send_in => :body },
-            { :name => :newName, :required => true, :send_in => :body }
-          ]
-          # :http_success_code => %w(200 404),
-        }.merge(options)
+      args,
+      {
+        :http_path => 'tags',
+        :http_method => :put,
+        :http_success_code => '204',
+        :parameters => [
+          { :name => :currentName, :required => true, :send_in => :body },
+          { :name => :newName, :required => true, :send_in => :body }
+        ]
+        # :http_success_code => %w(200 404),
+      }.merge(options)
     )
     process_request(_request, options)
   end
@@ -559,6 +685,28 @@ class Ubiquity::MediaSilo::API::V3::Client
   def tags_get
     http_client.get('tags')
   end
+
+  def user_delete(args = { }, options = { })
+    args = { :userId => args } if args.is_a?(String)
+    _request = Requests::BaseRequest.new(
+      args,
+      {
+        :http_path => '/users/#{arguments[:userId]}',
+        :http_method => :delete,
+        :http_success_code => '204',
+        :parameters => [
+          { :name => :userId, :required => true, :send_in => :query },
+        ]
+        # :http_success_code => %w(200 404),
+      }.merge(options)
+    )
+    process_request(_request, options)
+  end
+
+  def users_get(args = { }, options = { })
+    http_client.get('users?_pageSize=250')
+  end
+
 
 
 end

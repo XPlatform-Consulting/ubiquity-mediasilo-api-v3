@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.email         = ['john.whitson@gmail.com']
   spec.summary       = %q{A Library and Utilities to Interact with the MediaSilo API v3}
   spec.description   = %q{}
-  spec.homepage      = ''
+  spec.homepage      = 'https://github.com/XPlatform-Consulting/ubiquity-mediasilo-api-v3'
   spec.license       = 'MIT'
 
   spec.files         = `git ls-files -z`.split("\x0")

@@ -42,7 +42,11 @@ An executable to interact with the MediaSilo API
 
 #### Examples
 
-##### Assets
+##### [Assets](http://developers.mediasilo.com/assets)
+
+###### Asset Copy to Folder
+
+###### Asset Copy to Project
 
 ###### Asset Create ([Create a new asset](http://developers.mediasilo.com/assets))
 
